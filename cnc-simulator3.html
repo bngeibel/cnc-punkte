@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>CNC Learning Simulator Offline</title>
+
+<style>
+
+*{
+  box-sizing:border-box;
+}
+
+body{
+  margin:0;
+  padding:20px;
+  font-family:Arial,sans-serif;
+  background:#f1f5f9;
+}
+
+.header{
+  background:white;
+  padding:20px;
+  border-radius:16px;
+  margin-bottom:20px;
+  box-shadow:0 2px 8px rgba(0,0,0,.1);
+}
+
+.layout{
+  display:grid;
+  grid-template-columns:420px 1fr;
+  gap:20px;
+}
+
+.panel{
+  background:white;
+  padding:20px;
+  border-radius:16px;
+  box-shadow:0 2px 8px rgba(0,0,0,.1);
+}
+
+h1{
+  margin-top:0;
+}
+
+select,
+input,
+button{
+  width:100%;
+  padding:10px;
+  margin-top:10px;
+  font-size:16px;
+}
+
+button{
+  background:#2563eb;
+  border:none;
+  color:white;
+  cursor:pointer;
+}
+
+button:hover{
+  background:#1d4ed8;
+}
+
+.info{
+  background:#dbeafe;
+  margin-top:12px;
+  padding:10px;
+  border-radius:10px;
+}
+
+.learn{
+  background:#dcfce7;
+  margin-top:12px;
+  padding:10px;
+  border-radius:10px;
+}
+
+.status{
+  margin-top:15px;
+  font-weight:bold;
+}
+
+svg{
+  width:100%;
+  height:700px;
+  border:1px solid #cccccc;
+  background:white;
+}
+
+@media(max-width:900px){
+
+  .layout{
+    grid-template-columns:1fr;
+  }
+
+  svg{
+    height:500px;
+  }
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="header">
+
+  <h1>CNC Learning Simulator 2.0</h1>
+
+  <p>
+    Offline-Version für G90 und G91
+  </p>
+
+</div>
+
+<div class="layout">
+
+  <div class="panel">
+
+    <h2 id="taskTitle"></h2>
+
+    <select id="taskSelect"></select>
+
+    <select id="modeSelect">
+
+      <option value="lernen">
+        Lernmodus
+      </option>
+
+      <option value="uebung">
+        Übungsmodus
+      </option>
+
+    </select>
+
+    <div class="info">
+
+      Modus:
+      <b id="currentMode"></b>
+
+      <br><br>
+
+      Anzufahren:
+      <b id="currentPoint"></b>
+
+    </div>
+
+    <div
+      id="learnBox"
+      class="learn">
+    </div>
+
+    <input
+      id="xInput"
+      type="number"
+      placeholder="X">
+
+    <input
+      id="yInput"
+      type="number"
+      placeholder="Y">
+
+    <button onclick="checkPoint()">
+      Prüfen
+    </button>
+
+    <button onclick="resetTask()">
+      Aufgabe neu starten
+    </button>
+
+    <hr>
+
+    <div>
+
+      Position:
+
+      <span id="posLabel">
+
+      </span>
+
+    </div>
+
+    <div>
+
+      Fortschritt:
+
+      <span id="progressLabel">
+
+      </span>
+
+    </div>
+
+    <div>
+
+      Punkte:
+
+      <span id="scoreLabel">
+
+      </span>
+
+    </div>
+
+    <div
+      id="msg"
+      class="status">
+
+      Bereit
+
+    </div>
+
+  </div>
+
+  <div class="panel">
+
+    <svg
+      id="svg"
+      viewBox="0 0 100 100">
+
+    </svg>
+
+  </div>
+
+</div>
+
+<script>
+
+const tasks = [
+
+{
+  title:"G90 Rechteck",
+  mode:"G90",
+  points:[
+    {x:30,y:30},
+    {x:70,y:30},
+    {x:70,y:60},
+    {x:30,y:60},
+    {x:30,y:30}
+  ]
+},
+
+{
+  title:"G90 L-Kontur",
+  mode:"G90",
+  points:[
+    {x:35,y:35},
+    {x:75,y:35},
+    {x:75,y:50},
+    {x:55,y:50},
+    {x:55,y:75},
+    {x:35,y:75}
+  ]
+},
+
+{
+  title:"G90 Stufenkontur",
+  mode:"G90",
+  points:[
+    {x:30,y:30},
+    {x:45,y:30},
+    {x:45,y:45},
+    {x:60,y:45},
+    {x:60,y:60},
+    {x:75,y:60}
+  ]
+},
+
+{
+  title:"G90 U-Kontur",
+  mode:"G90",
+  points:[
+    {x:30,y:30},
+    {x:70,y:30},
+    {x:70,y:75},
+    {x:55,y:75},
+    {x:55,y:50},
+    {x:45,y:50},
+    {x:45,y:75},
+    {x:30,y:75}
+  ]
+},
+
+{
+  title:"G90 Flanschform",
+  mode:"G90",
+  points:[
+    {x:35,y:45},
+    {x:50,y:35},
+    {x:65,y:45},
+    {x:65,y:65},
+    {x:50,y:75},
+    {x:35,y:65}
+  ]
+},
+
+{
+  title:"G91 Rechteck",
+  mode:"G91",
+  points:[
+    {x:40,y:40},
+    {x:20,y:0},
+    {x:0,y:20},
+    {x:-20,y:0},
+    {x:0,y:-20}
+  ]
+},
+
+{
+  title:"G91 Treppe",
+  mode:"G91",
+  points:[
+    {x:35,y:35},
+    {x:15,y:0},
+    {x:0,y:10},
+    {x:15,y:0},
+    {x:0,y:10},
+    {x:15,y:0},
+    {x:0,y:10}
+  ]
+},
+
+{
+  title:"G91 Zickzack",
+  mode:"G91",
+  points:[
+    {x:25,y:50},
+    {x:15,y:10},
+    {x:15,y:-10},
+    {x:15,y:10},
+    {x:15,y:-10},
+    {x:15,y:10}
+  ]
+},
+
+{
+  title:"G91 Gemischte Kontur",
+  mode:"G91",
+  points:[
+    {x:40,y:40},
+    {x:15,y:15},
+    {x:-10,y:15},
+    {x:-15,y:-10},
+    {x:-10,y:-20}
+  ]
+},
+
+{
+  title:"G91 Taschenkontur",
+  mode:"G91",
+  points:[
+    {x:35,y:35},
+    {x:20,y:0},
+    {x:0,y:20},
+    {x:-10,y:0},
+    {x:0,y:-10},
+    {x:-10,y:0},
+    {x:0,y:-10}
+  ]
+}
+
+];
+``
+
+let currentTask = 0;
+let step = 0;
+let score = 0;
+
+let pos = {
+  x:0,
+  y:0
+};
+
+let path = [
+  {x:0,y:0}
+];
+
+function getDisplayPoints(task){
+
+  let px = 0;
+  let py = 0;
+
+  return task.points.map(p=>{
+
+    if(task.mode === "G90"){
+      return p;
+    }
+
+    px += p.x;
+    py += p.y;
+
+    return {
+      x:px,
+      y:py
+    };
+
+  });
+
+}
+
+function createSVG(type){
+
+  return document.createElementNS(
+    "http://www.w3.org/2000/svg",
+    type
+  );
+
+}
+
+function drawGrid(svg){
+
+  for(let i=0;i<=10;i++){
+
+    const v = createSVG("line");
+
+    v.setAttribute("x1",i*10);
+    v.setAttribute("y1",0);
+    v.setAttribute("x2",i*10);
+    v.setAttribute("y2",100);
+
+    v.setAttribute("stroke","#ddd");
+
+    svg.appendChild(v);
+
+    const h = createSVG("line");
+
+    h.setAttribute("x1",0);
+    h.setAttribute("y1",i*10);
+    h.setAttribute("x2",100);
+    h.setAttribute("y2",i*10);
+
+    h.setAttribute("stroke","#ddd");
+
+    svg.appendChild(h);
+
+  }
+  // X-Achse
+
+  const xLabel = createSVG("text");
+
+  xLabel.setAttribute("x",95);
+  xLabel.setAttribute("y",98);
+  xLabel.setAttribute("font-size","4");
+  xLabel.setAttribute("font-weight","bold");
+
+  xLabel.textContent = "X";
+
+  svg.appendChild(xLabel);
+
+  // Y-Achse
+
+  const yLabel = createSVG("text");
+
+  yLabel.setAttribute("x",2);
+  yLabel.setAttribute("y",8);
+  yLabel.setAttribute("font-size","4");
+  yLabel.setAttribute("font-weight","bold");
+
+  yLabel.textContent = "Y";
+
+  svg.appendChild(yLabel);
+  
+  for(let i=0;i<=10;i++){
+
+  const xText = createSVG("text");
+
+  xText.setAttribute("x",i*10);
+  xText.setAttribute("y",98);
+  xText.setAttribute("font-size","2");
+
+  xText.textContent = i*10;
+
+  svg.appendChild(xText);
+
+  const yText = createSVG("text");
+
+  yText.setAttribute("x",1);
+
+  yText.setAttribute(
+    "y",
+    100-(i*10)
+  );
+
+  yText.setAttribute(
+    "font-size",
+    "2"
+  );
+
+  yText.textContent =
+    i*10;
+
+  svg.appendChild(yText);
+
+}
+
+
+}
+
+function fillTaskSelect(){
+
+  const select =
+    document.getElementById(
+      "taskSelect"
+    );
+
+  select.innerHTML = "";
+
+  tasks.forEach((task,index)=>{
+
+    const option =
+      document.createElement(
+        "option"
+      );
+
+    option.value = index;
+    option.textContent = task.title;
+
+    select.appendChild(option);
+
+  });
+
+}
+
+
+
+function render(){
+
+  const task = tasks[currentTask];
+  const displayPoints = getDisplayPoints(task);
+
+  document.getElementById("taskTitle").textContent =
+    task.title;
+
+  document.getElementById("currentMode").textContent =
+    task.mode;
+
+  document.getElementById("currentPoint").textContent =
+    step < task.points.length
+      ? `P${step + 1}`
+      : "Fertig";
+
+  document.getElementById("posLabel").textContent =
+    `X${pos.x} Y${pos.y}`;
+
+  document.getElementById("progressLabel").textContent =
+    `${Math.min(step + 1, task.points.length)} / ${task.points.length}`;
+
+  document.getElementById("scoreLabel").textContent =
+    score;
+
+  const mode =
+    document.getElementById("modeSelect").value;
+
+  const target =
+    task.points[step];
+
+  const learnBox =
+    document.getElementById("learnBox");
+
+  if(mode === "lernen" && target){
+
+    learnBox.style.display = "block";
+
+    learnBox.innerHTML =
+      `Sollwert: X${target.x} Y${target.y}`;
+
+  }else{
+
+    learnBox.style.display = "none";
+
+  }
+
+  const svg =
+    document.getElementById("svg");
+
+  svg.innerHTML = "";
+
+  drawGrid(svg);
+
+  path.forEach((point,index)=>{
+
+    if(index === 0) return;
+
+    const line = createSVG("line");
+
+    line.setAttribute(
+      "x1",
+      path[index-1].x
+    );
+
+    line.setAttribute(
+      "y1",
+      100-path[index-1].y
+    );
+
+    line.setAttribute(
+      "x2",
+      point.x
+    );
+
+    line.setAttribute(
+      "y2",
+      100-point.y
+    );
+
+    line.setAttribute(
+      "stroke",
+      "red"
+    );
+
+    line.setAttribute(
+      "stroke-width",
+      "1"
+    );
+
+    svg.appendChild(line);
+
+  });
+
+  displayPoints.forEach((p,index)=>{
+
+    let color = "#9ca3af";
+
+    if(index < step){
+      color = "#16a34a";
+    }
+
+    if(index === step){
+      color = "#f59e0b";
+    }
+
+    const circle =
+      createSVG("circle");
+
+    circle.setAttribute("cx",p.x);
+    circle.setAttribute("cy",100-p.y);
+    circle.setAttribute("r",2.5);
+    circle.setAttribute("fill",color);
+
+    svg.appendChild(circle);
+
+    const label =
+      createSVG("text");
+
+    label.setAttribute("x",p.x+2);
+    label.setAttribute("y",100-p.y-2);
+    label.setAttribute("font-size","3");
+
+    label.textContent =
+      `P${index+1}`;
+
+    svg.appendChild(label);
+
+  });
+
+  const tool =
+    createSVG("circle");
+
+  tool.setAttribute("cx",pos.x);
+  tool.setAttribute("cy",100-pos.y);
+  tool.setAttribute("r",3);
+  tool.setAttribute("fill","blue");
+
+  svg.appendChild(tool);
+
+}
+
+function resetTask(){
+
+  step = 0;
+  score = 0;
+
+  pos = {
+    x:0,
+    y:0
+  };
+
+  path = [
+    {
+      x:0,
+      y:0
+    }
+  ];
+
+  document.getElementById("msg")
+    .textContent =
+    "Neue Aufgabe gestartet";
+
+  render();
+
+}
+
+function checkPoint(){
+
+  const task =
+    tasks[currentTask];
+
+  if(step >= task.points.length){
+    return;
+  }
+
+  const x =
+    Number(
+      document.getElementById("xInput").value
+    );
+
+  const y =
+    Number(
+      document.getElementById("yInput").value
+    );
+
+  const target =
+    task.points[step];
+
+  const correct =
+    x === target.x &&
+    y === target.y;
+
+  if(correct){
+
+    const newPos =
+      task.mode === "G90"
+      ? {x:x,y:y}
+      : {
+          x:pos.x+x,
+          y:pos.y+y
+        };
+
+    pos = newPos;
+
+    path.push(
+      {
+        x:newPos.x,
+        y:newPos.y
+      }
+    );
+
+    score++;
+
+    if(step === task.points.length-1){
+
+      document.getElementById("msg")
+        .textContent =
+        "✅ Aufgabe abgeschlossen";
+
+      step++;
+
+    }else{
+
+      step++;
+
+      document.getElementById("msg")
+        .textContent =
+        "✅ Punkt korrekt";
+
+    }
+
+  }else{
+
+    document.getElementById("msg")
+      .textContent =
+      "❌ Punkt falsch";
+
+  }
+
+  document.getElementById("xInput")
+    .value = "";
+
+  document.getElementById("yInput")
+    .value = "";
+
+  render();
+
+}
+
+document
+.getElementById("taskSelect")
+.addEventListener(
+  "change",
+  function(){
+
+    currentTask =
+      Number(this.value);
+
+    resetTask();
+
+  }
+);
+
+document
+.getElementById("modeSelect")
+.addEventListener(
+  "change",
+  render
+);
+
+fillTaskSelect();
+
+document
+.getElementById("taskSelect")
+.value = "0";
+
+render();
+
+</script>
+
+</body>
+</html>
